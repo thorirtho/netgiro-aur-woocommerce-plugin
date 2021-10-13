@@ -1,0 +1,18 @@
+.payment_method_woocommerce_aur label img {
+    max-height: 40px;
+    max-width: 200px;
+    min-height: 40px;
+}
+#wc-woocommerce_aur-phone-form {
+    padding: 0.5rem;
+}
+.aur-message {
+    padding: 20px; 
+    background-color: #fdf4de; 
+    border: 1px solid #e6af23;
+    margin-bottom: 20px;
+}
+.aur-message .aur-message-h2, .aur-message .aur-message-p {
+    clear: both;
+    margin: 1rem 0;
+}
