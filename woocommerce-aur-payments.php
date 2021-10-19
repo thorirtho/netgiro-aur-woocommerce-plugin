@@ -3,9 +3,9 @@
   Plugin Name: Aur Payments
   Plugin URI: https://aur.is
   Description: Extends WooCommerce with a <a href="https://www.aur.is/" target="_blank">Aur</a> payments.
-  Version: 1.5.3
-  Author: Avista
-  Author URI: https://avista.is
+  Version: 1.0.0
+  Author: Netgíró
+  Author URI: https://netgiro.is
 
   License: GNU General Public License v3.0
   License URI: http://www.gnu.org/licenses/gpl-3.0.html
@@ -109,7 +109,9 @@ function aur_init_gateway_class()
             // We need custom JavaScript to obtain a token
             add_action('wp_enqueue_scripts', array($this, 'aur_scripts'));
             // Registering a webhook here
-            add_action('woocommerce_api_orderupdate', array($this, 'callback_handler'));
+            //add_action('woocommerce_api_orderupdate', array($this, 'callback_handler'));
+            add_action('init', 'callback_handler');
+            add_action('woocommerce_api_wc_' . $this->id . "_callback", array($this, 'callback_handler'));
 
             // Custom message on thank you page
             add_action('woocommerce_thankyou_woocommerce_aur', array($this, 'aur_thankyou_message'), 2, 1);
@@ -272,14 +274,13 @@ function aur_init_gateway_class()
 
             $order_id = sanitize_text_field($order_id);
             $order = new WC_Order($order_id);
-            $txnid = $order_id . '_' . date("ymds");
 
             if (!is_numeric($order->get_total())) {
                 return $this->get_error_message();
             }
 
             $round_numbers = $this->round_numbers;
-            $payment_Confirmed_url = add_query_arg('wc-api', 'WC_netgiro_callback', home_url('/'));
+            $payment_Confirmed_url = add_query_arg('wc-api', 'WC_' . $this->id . '_callback', home_url('/'));
 
             $total = round(number_format($order->get_total(), 0, '', ''));
 
@@ -297,8 +298,8 @@ function aur_init_gateway_class()
             // Netgiro arguments
             $netgiro_args = array(
                 'amount' => $total,
-                'description' => $order_id,
-                'reference' => $txnid,
+                'description' => 'Order number ' . $order_id . '.  Time:' . date("h:i:s d-m-Y"),
+                'reference' => $order_id,
                 'customerId' => $customer_id,
                 'callbackUrl' => $payment_Confirmed_url,
                 'ConfirmationType' => '0',
@@ -308,7 +309,9 @@ function aur_init_gateway_class()
             );
 
             // Woocommerce -> Netgiro Items
+            $items = array();
             foreach ($order->get_items() as $item) {
+                $i = 0;
                 $validationPass = $this->validateItemArray($item);
 
                 if (!$validationPass) {
@@ -323,14 +326,15 @@ function aur_init_gateway_class()
                     $amount = round($amount);
                 }
 
-                $items[] = array(
+                $items[$i] = array(
                     'productNo' => $item['product_id'],
                     'name' => $item['name'],
                     'description' => $item['description'],  /* TODO Could not find description */
                     'unitPrice' => $unitPrice,
                     'amount' => $amount,
-                    'quantity' => $item['qty'] * 1000
+                    'quantity' => $item['qty']
                 );
+                $i++;
             }
 
             $netgiro_args['cartItemRequests'] = $items;
@@ -412,7 +416,7 @@ function aur_init_gateway_class()
                     'netgiro_appkey' => $this->web_key,
                     'netgiro_nonce' => $nonce,
                     'netgiro_signature' => $signature,
-                    'netgiro_referenceId' => getGUID(),
+                    'netgiro_referenceId' => $this->getGUID(),
                     'Content-Type' => 'application/json; charset=utf-8'
                 ],
                 'body' => json_encode($aur_args),
@@ -420,12 +424,10 @@ function aur_init_gateway_class()
                 'data_format' => 'body'
             ));
 
+            echo 'her';
 
             if (!is_wp_error($response)) {
                 $res_json = json_decode(wp_remote_retrieve_body($response));
-                var_dump($res_json);
-
-                var_dump($res_json->ResultCode);
 
                 // Checking response from Aur
                 if ($res_json->ResultCode === 200 && $res_json->Success === true) {
@@ -454,6 +456,25 @@ function aur_init_gateway_class()
             }
         }
 
+        private function getGUID(): string
+        {
+            if (function_exists('com_create_guid')) {
+                return com_create_guid();
+            } else {
+                mt_srand((double)microtime() * 10000);//optional for php 4.2.0 and up.
+                $charid = strtoupper(md5(uniqid(rand(), true)));
+                $hyphen = chr(45);// "-"
+                $uuid = chr(123)// "{"
+                    . substr($charid, 0, 8) . $hyphen
+                    . substr($charid, 8, 4) . $hyphen
+                    . substr($charid, 12, 4) . $hyphen
+                    . substr($charid, 16, 4) . $hyphen
+                    . substr($charid, 20, 12)
+                    . chr(125);// "}"
+                return $uuid;
+            }
+        }
+
 
         /*
          * Callback
@@ -464,45 +485,54 @@ function aur_init_gateway_class()
 
             $logger = wc_get_logger();
 
-            if ((isset($_GET['ng_netgiroSignature']) && $_GET['ng_netgiroSignature'])
-                && $_GET['ng_orderid'] && $_GET['ng_transactionid'] && $_GET['ng_signature']
-            ) {
-                $signature = sanitize_text_field($_GET['ng_netgiroSignature']);
-                $orderId = sanitize_text_field($_GET['ng_orderid']);
-                $order = new WC_Order($orderId);
-                $secret_key = sanitize_text_field($this->web_token);
-                $invoice_number = sanitize_text_field($_REQUEST['ng_invoiceNumber']);
-                $transactionId = sanitize_text_field($_REQUEST['ng_transactionid']);
-                $totalAmount = sanitize_text_field($_REQUEST['ng_totalAmount']);
-                $status = sanitize_text_field($_REQUEST['ng_status']);
+            $data = file_get_contents('php://input');
+            $json_data = json_decode($data, true);
 
-                $str = $secret_key . $orderId . $transactionId . $invoice_number . $totalAmount . $status;
-                $hash = hash('sha256', $str);
+            // Get headers from request
+            $headers = getallheaders();
+            $app_key = $headers['Netgiro-Appkey'];
+            $ng_signature = $headers['Netgiro-Signature'];
+            $nonce = $headers['Netgiro-Nonce'];
+            $referenceid = $headers['Netgiro-Referenceid'];
 
-                // correct signature and order is success
-                // TODO Payment Cancelled
-                if ($hash == $signature && is_numeric($invoice_number)) {
-                    $order->payment_complete();
-                    $order->add_order_note('Payment completed by user in Aur app', false);
-                    $woocommerce->cart->empty_cart();
+            // Get parameters from POST
+            $success = $json_data['Success'];
+            $order_id = $json_data['PaymentInfo']['ReferenceNumber'];
+            $secret_key = sanitize_text_field($this->web_token);
+            $payment_successful = $json_data['PaymentSuccessful'];
+            $result_code = $json_data['ResultCode'];
+            $invoice_number = $json_data['PaymentInfo']['InvoiceNumber'];
+            $status_id = $json_data['PaymentInfo']['StatusId'];
+            $total_amount = $json_data['PaymentInfo']['TotalAmount'];
+            $transaction_id = $data['PaymentInfo']['TransactionId'];
+
+            $order = new WC_Order($order_id);
+
+            // Create signature
+            $uri = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") . "://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]";
+            $str = $secret_key . $nonce . trim($uri) . trim($data);
+            $signature = hash('sha256', $str);
+
+            if ($ng_signature == $signature && is_numeric($invoice_number)) {
+                $order->payment_complete();
+                $order->add_order_note( 'Payment completed by user in Aur app', false );
+                $woocommerce->cart->empty_cart();
+            } else {
+                $failed_message = 'Aur payment failed. Woocommerce order id: ' . $order_id . ' and Netgiro reference no.: ' . $invoice_number . ' does relate to signature: ' . $signature;
+
+                // Set order status to failed
+                if (is_bool($order) === false) {
+                    $logger->debug($failed_message, array('source' => 'netgiro_response'));
+                    $order->update_status('failed');
+                    $order->add_order_note($failed_message);
                 } else {
-                    $failed_message = 'Aur payment failed. Woocommerce order id: ' . $orderId . ' and Aur reference no.: ' . $invoice_number . ' does relate to signature: ' . $signature;
-
-                    // Set order status to failed
-                    if (is_bool($order) === false) {
-                        $logger->debug($failed_message, array('source' => 'netgiro_response'));
-                        $order->update_status('failed');
-                        $order->add_order_note($failed_message, false);
-                    } else {
-                        $logger->debug('error netgiro_response - order not found: ' . $orderId, array('source' => 'netgiro_response'));
-                    }
-
-                    wc_add_notice("Ekki tókst að staðfesta Aur greiðslu! Vinsamlega hafðu samband við verslun og athugað stöðuna á pöntun þinni nr. " . $orderId, 'error');
+                    $logger->debug('error netgiro_response - order not found: ' . $order_id, array('source' => 'callback_handler'));
                 }
 
-                exit;
+                wc_add_notice("Ekki tókst að staðfesta Aur greiðslu! Vinsamlega hafðu samband við verslun og athugað stöðuna á pöntun þinni nr. " . $order_id, 'error');
             }
+
+            exit();
         }
     }
 }
-
