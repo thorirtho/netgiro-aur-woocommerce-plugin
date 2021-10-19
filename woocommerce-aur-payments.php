@@ -103,7 +103,7 @@ function aur_init_gateway_class()
             $this->testmode = 'yes' === $this->get_option('testmode');
             $this->web_key = $this->get_option('web_key');
             $this->web_token = $this->get_option('web_token');
-            $this->api_endpoint = $this->testmode ? 'https://test.netgiro.is/api/Checkout/InsertCart' : 'https://api.netgiro.is/v1/Checkout/InsertCart';
+            $this->api_endpoint = $this->testmode ? 'https://greidsla-test.aur.is/Checkout/InsertCart' : 'https://greidsla.aur.is/Checkout/InsertCart';
             // This action hook saves the settings
             add_action('woocommerce_update_options_payment_gateways_' . $this->id, array($this, 'process_admin_options'));
             // We need custom JavaScript to obtain a token
@@ -423,8 +423,6 @@ function aur_init_gateway_class()
                 'method' => 'POST',
                 'data_format' => 'body'
             ));
-
-            echo 'her';
 
             if (!is_wp_error($response)) {
                 $res_json = json_decode(wp_remote_retrieve_body($response));

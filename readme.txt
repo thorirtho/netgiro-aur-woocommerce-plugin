@@ -2,7 +2,7 @@
 Tags: woocommerce, payments, aur
 Requires at least: 4.6
 Tested up to: 5.3
-Stable tag: 1.5
+Stable tag: 1.0
 Requires PHP: 5.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -35,13 +35,5 @@ You will have to contact Aur for more information at aur@aur.is
 
 == Changelog ==
 
-= 1.5 =
-* Rewritten from scratch
-* Better support for payment status
-* Improved update checker
-
-
-== Upgrade Notice ==
-
-= 1.5 =
-This version fixes a security related bug and improve payment status check. Upgrade immediately.
+= 1.0 =
+Initial version
