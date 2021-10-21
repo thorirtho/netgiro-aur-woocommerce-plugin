@@ -3,15 +3,15 @@
   Plugin Name: Aur Payments
   Plugin URI: https://aur.is
   Description: Extends WooCommerce with a <a href="https://www.aur.is/" target="_blank">Aur</a> payments.
-  Version: 1.0.0
-  Author: Netgíró
-  Author URI: https://netgiro.is
+  Version: 1.0.1
+  Author: Aur
+  Author URI: https://aur.is
 
   License: GNU General Public License v3.0
   License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
   WC requires at least: 3.6.0
-  WC tested up to: 4.2.0
+  WC tested up to: 5.8.0
  */
 
 // If this file is called directly, abort.
@@ -19,24 +19,17 @@ if (!defined('WPINC')) {
     die;
 }
 
-/*
 // Update checker
 require 'plugin-update-checker/plugin-update-checker.php';
 $myUpdateChecker = Puc_v4_Factory::buildUpdateChecker(
-    'https://davidhalldorsson@bitbucket.org/avista_is/woocommerce-aur-payments.git',
+    'https://github.com/thorirtho/netgiro-aur-woocommerce-plugin',
     __FILE__,
     'woocommerce-aur-payments'
 );
 
-//OAuth consumer
-$myUpdateChecker->setAuthentication(array(
-    'consumer_key' => 'ReRZXExK8uK53gqjzg',
-    'consumer_secret' => 'qWWTygBA4vCmp7rvekq8HJtNfx56mtxp',
-));
-
 //Optional: Set the branch that contains the stable release.
-$myUpdateChecker->setBranch('master');
-*/
+$myUpdateChecker->setBranch('stable');
+
 
 /**
  * Check if WooCommerce is active
@@ -423,6 +416,8 @@ function aur_init_gateway_class()
                 'method' => 'POST',
                 'data_format' => 'body'
             ));
+
+            echo var_dump($response);
 
             if (!is_wp_error($response)) {
                 $res_json = json_decode(wp_remote_retrieve_body($response));
